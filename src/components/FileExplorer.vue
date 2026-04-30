@@ -33,7 +33,6 @@
               v-for="f in files"
               :key="f.name"
               @click="openFile(f.handle)"
-              :title="f.name"
             >
               <td class="col-title">{{ f.name }}</td>
               <td class="col-artist">{{ f.artist || '—' }}</td>

@@ -16,6 +16,12 @@ Acorde del coro/Chorus chord
 "
       spellcheck="false"
       autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-enable-grammarly="false"
+      data-ms-editor="false"
     />
   </div>
 </template>
@@ -45,15 +51,16 @@ export default {
   bottom: 0;
   background: var(--bg, #0d0d0d);
   z-index: 1;
-  transition: left 280ms ease;
+  transition: none !important;
 }
 
 .SongEditor textarea {
   width: 100%;
   height: 100%;
   resize: none;
-  border: none;
-  outline: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   background: var(--bg, #0d0d0d);
   color: var(--fg, #f0f0f0);
   padding: 20px 24px;

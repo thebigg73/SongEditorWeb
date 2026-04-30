@@ -565,7 +565,38 @@ html, body, #app {
   background: var(--bg);
   color: var(--fg);
   font-family: 'Segoe UI', system-ui, sans-serif;
-  transition: background 0.2s, color 0.2s;
+  overflow-x: hidden;
+}
+
+/* ==========================================================================
+   FIX: Custom Scrollbars to prevent Windows Overlay Scrollbar bug.
+   This prevents the 5-second fade-out timer, the pixel shifting, and 
+   the GPU cursor flickering caused by OS-level scrollbars.
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg, #0d0d0d);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border, #333);
+  border-radius: 7px;
+  border: 3px solid var(--bg, #0d0d0d);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg2, #555);
+}
+
+/* Transiciones originales restauradas (sin afectar el rendimiento) */
+.file-explorer, .preview-panel, .SongEditor {
+  transition: width 280ms ease, left 280ms ease;
+}
+
+/* Evitamos transiciones en el textarea para asegurar fluidez extrema */
+textarea {
+  transition: none !important;
 }
 
 /* ── Toolbar ── */
@@ -606,7 +637,7 @@ button:hover {
   box-shadow: 0 4px 12px rgba(60, 168, 141, 0.2);
 }
 button:active {
-  transform: translateY(0);
+  transform: none !important;
 }
 
 /* ── Modal ── */
