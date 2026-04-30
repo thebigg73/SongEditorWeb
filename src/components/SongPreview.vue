@@ -269,6 +269,7 @@ export default {
         this.isResizing = false;
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
+        window.removeEventListener('blur', onMouseUp);
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
         localStorage.setItem('previewWidth', this.customWidth);
@@ -278,6 +279,7 @@ export default {
       document.body.style.userSelect = 'none';
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('blur', onMouseUp);
     },
 
     printSong() {
