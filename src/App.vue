@@ -590,7 +590,7 @@ html, body, #app {
 }
 
 /* Transiciones originales restauradas (sin afectar el rendimiento) */
-.file-explorer, .preview-panel, .SongEditor {
+.file-explorer, .preview-panel {
   transition: width 280ms ease, left 280ms ease;
 }
 

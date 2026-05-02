@@ -68,7 +68,7 @@ export default {
   font-family: 'Courier New', 'Consolas', monospace;
   font-size: 14px;
   line-height: 1.7;
-  cursor: text;
+  cursor: auto;
   caret-color: var(--accent, #3ca88d);
 }
 
