@@ -233,6 +233,8 @@ export default {
             );
             return `<div class="line-chords">${conSpans}</div>`;
           }
+          // FIX: remove extra space from start of lyrics line
+          linea = linea.replace(/^ /, "");
           return linea.trim()
             ? `<div class="line-lyrics">${linea}</div>`
             : `<div class="line-empty"></div>`;
