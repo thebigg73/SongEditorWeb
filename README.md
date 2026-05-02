@@ -2,6 +2,11 @@
 
 ¡Bienvenido al repositorio de **Song Editor PWA**! Esta es una aplicación web progresiva (PWA) construida con Vue 3 diseñada para visualizar, editar y gestionar canciones y setlists, con soporte para el formato XML de OpenSong.
 
+## 🌐 Demo en vivo
+
+Puedes probar la aplicación en vivo aquí: **[https://gusakorn.github.io/SongEditorWeb/](https://gusakorn.github.io/SongEditorWeb/)**
+
+
 ## ✨ Características Principales
 
 - **Edición en Tiempo Real:** Edita letras, acordes y metadatos de las canciones con una vista previa instantánea.
@@ -30,7 +35,7 @@ Sigue estos pasos para levantar el entorno de desarrollo en tu máquina local:
 
 1. **Clona este repositorio:**
    ```bash
-   git clone https://github.com/tu-usuario/mi-editor.git
+   git clone https://github.com/gusakorn/SongEditorWeb.git
    cd mi-editor
    ```
 
@@ -54,6 +59,7 @@ En el directorio del proyecto, puedes ejecutar los siguientes comandos:
 | `npm run serve` | Inicia el servidor de desarrollo local con recarga en caliente (hot-reload). |
 | `npm run build` | Compila y minifica la aplicación para producción en la carpeta `dist`. |
 | `npm run lint` | Analiza el código fuente en busca de errores de sintaxis y los corrige automáticamente si es posible. |
+| `npm run deploy` | Compila y despliega la aplicación automáticamente en GitHub Pages. |
 
 ## 🤝 Cómo Contribuir
 

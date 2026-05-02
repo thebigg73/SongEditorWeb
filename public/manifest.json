@@ -8,7 +8,7 @@
   "theme_color": "#3ca88d",
   "file_handlers": [
     {
-      "action": "/",
+      "action": ".",
       "accept": {
         "text/plain": [".song", ".txt", ".ost"],
         "application/xml": [".xml"]
