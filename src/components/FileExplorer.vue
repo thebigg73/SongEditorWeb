@@ -15,9 +15,9 @@
           <path d="M23 4v6h-6"></path>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
         </svg>
-        <span>{{ pendingRoot ? 'Restaurar acceso a archivos' : (rootHandle ? t.changeRoot : t.pickRoot) }}</span>
+        <span>{{ pendingRoot ? t.restoreFilesAccess : (rootHandle ? t.changeRoot : t.pickRoot) }}</span>
       </button>
-      <div class="files-list">
+      <div ref="filesList" class="files-list">
         <div v-if="!rootHandle" class="empty">{{ t.noFolder }}</div>
         <table v-else class="file-table">
           <thead>
@@ -32,7 +32,8 @@
             <tr
               v-for="f in files"
               :key="f.name"
-              @click="openFile(f.handle)"
+              :class="{ selected: activeFileName === f.name }"
+              @click="openFile(f.handle, f.name)"
             >
               <td class="col-title">{{ f.name }}</td>
               <td class="col-artist">{{ f.artist || '—' }}</td>
@@ -85,7 +86,7 @@
           <path d="M23 4v6h-6"></path>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
         </svg>
-        <span>{{ pendingSetRoot ? 'Restaurar acceso a setlists' : (setRoot ? t.changeRoot : t.pickSetRoot) }}</span>
+        <span>{{ pendingSetRoot ? t.restoreSetlistsAccess : (setRoot ? t.changeRoot : t.pickSetRoot) }}</span>
       </button>
       <div class="setlist-area">
         <div v-if="!setRoot" class="empty">{{ t.noFolder }}</div>
@@ -176,13 +177,16 @@ export default {
       setFiles: [],
       setlistItems: [],
       setlistName: '',
+      setlistUuid: '',
+      setlistLastModified: '',
       setlistHandle: null,
       // Drag & drop state
       dragIndex: null,
       dragOverIndex: null,
       pendingRoot: null,
       pendingSetRoot: null,
-      activeMenu: null
+      activeMenu: null,
+      activeFileName: null
     };
   },
   async mounted() {
@@ -199,18 +203,101 @@ export default {
     closeMenu() {
       this.activeMenu = null;
     },
+    createUuid() {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    },
+    currentIsoSecond() {
+      return new Date().toISOString().split('.')[0] + 'Z';
+    },
+    isVisibleSongFileName(name) {
+      return /\.(xml|ost|txt|song)$/i.test(name) || !name.includes('.');
+    },
+    normalizeRenameTarget(oldName, requestedName) {
+      const trimmedName = requestedName.trim();
+      const oldExtensionMatch = oldName.match(/(\.[^.]+)$/);
+      const oldExtension = oldExtensionMatch ? oldExtensionMatch[1] : '';
+      const newHasExtension = /\.[^.]+$/.test(trimmedName);
+
+      if (!newHasExtension && oldExtension) {
+        return `${trimmedName}${oldExtension}`;
+      }
+
+      return trimmedName;
+    },
+    isCaseOnlyRename(oldName, newName) {
+      return oldName !== newName && oldName.toLocaleLowerCase() === newName.toLocaleLowerCase();
+    },
+    buildTempRenameName(targetName) {
+      const timestamp = Date.now();
+      const extensionMatch = targetName.match(/(\.[^.]+)$/);
+      const extension = extensionMatch ? extensionMatch[1] : '';
+      const baseName = extension ? targetName.slice(0, -extension.length) : targetName;
+      return `${baseName}.__sew_tmp_${timestamp}${extension}`;
+    },
+    getFilesListScrollTop() {
+      return this.$refs.filesList?.scrollTop || 0;
+    },
+    setFilesListScrollTop(scrollTop) {
+      if (this.$refs.filesList) {
+        this.$refs.filesList.scrollTop = scrollTop;
+      }
+    },
     async renameFile(file) {
       this.closeMenu();
-      const newName = prompt(this.t.renamePrompt, file.name);
+      const requestedName = prompt(this.t.renamePrompt, file.name);
+      if (!requestedName) return;
+
+      const newName = this.normalizeRenameTarget(file.name, requestedName);
       if (!newName || newName === file.name) return;
+      if (!this.isVisibleSongFileName(newName)) {
+        alert(this.t.renameInvalidFileType);
+        return;
+      }
       
       try {
         if (file.handle.move) {
           try {
             await file.handle.move(newName);
-            await this.refreshRoot();
+            await this.refreshRoot({ selectedName: newName });
             return;
           } catch(e) { console.warn('Native move not supported or failed', e); }
+        }
+
+        if (this.isCaseOnlyRename(file.name, newName)) {
+          const tempName = this.buildTempRenameName(newName);
+          const oldFile = await file.handle.getFile();
+          const data = await oldFile.arrayBuffer();
+
+          const tempHandle = await this.rootHandle.getFileHandle(tempName, { create: true });
+          const tempWritable = await tempHandle.createWritable();
+          await tempWritable.write(data);
+          await tempWritable.close();
+
+          const tempFile = await tempHandle.getFile();
+          if (tempFile.size !== oldFile.size) {
+            throw new Error('Temporary rename verification failed');
+          }
+
+          await this.rootHandle.removeEntry(file.name);
+
+          const finalHandle = await this.rootHandle.getFileHandle(newName, { create: true });
+          const finalWritable = await finalHandle.createWritable();
+          await finalWritable.write(data);
+          await finalWritable.close();
+
+          const finalFile = await finalHandle.getFile();
+          if (finalFile.size !== oldFile.size) {
+            throw new Error('Final rename verification failed');
+          }
+
+          await this.rootHandle.removeEntry(tempName);
+          await this.refreshRoot({ selectedName: newName });
+          return;
         }
         
         // Fallback: read -> new file -> write -> delete old
@@ -220,8 +307,12 @@ export default {
         const writable = await newHandle.createWritable();
         await writable.write(data);
         await writable.close();
+        const writtenFile = await newHandle.getFile();
+        if (writtenFile.size !== oldFile.size) {
+          throw new Error('Renamed file verification failed');
+        }
         await this.rootHandle.removeEntry(file.name);
-        await this.refreshRoot();
+        await this.refreshRoot({ selectedName: newName });
       } catch(err) {
         console.error("Error renaming file:", err);
         alert("Could not rename file.");
@@ -231,8 +322,10 @@ export default {
       this.closeMenu();
       if (!confirm(this.t.deleteConfirm)) return;
       try {
+        const deletedIndex = this.files.findIndex((f) => f.name === file.name);
+        const fallbackSelection = this.files[deletedIndex + 1]?.name || this.files[deletedIndex - 1]?.name || null;
         await this.rootHandle.removeEntry(file.name);
-        await this.refreshRoot();
+        await this.refreshRoot({ selectedName: this.activeFileName === file.name ? fallbackSelection : this.activeFileName });
       } catch(err) {
         console.error("Error deleting file:", err);
         alert("Could not delete file.");
@@ -289,7 +382,7 @@ export default {
       this.files = [];
       try {
         for await (const [name, handle] of dir.entries()) {
-          if (handle.kind === 'file' && (/\.(xml|ost|txt|song)$/i.test(name) || !name.includes('.'))) {
+          if (handle.kind === 'file' && this.isVisibleSongFileName(name)) {
             const meta = await this.readMetadata(handle, name);
             this.files.push({ name, handle, ...meta });
           }
@@ -300,9 +393,15 @@ export default {
       }
     },
 
-    async refreshRoot() {
+    async refreshRoot(options = {}) {
       if (this.rootHandle) {
+        const scrollTop = this.getFilesListScrollTop();
         await this.loadDirectory(this.rootHandle);
+        if (options.selectedName !== undefined) {
+          this.activeFileName = options.selectedName;
+        }
+        await this.$nextTick();
+        this.setFilesListScrollTop(scrollTop);
       }
     },
 
@@ -380,7 +479,8 @@ export default {
       }
     },
 
-    openFile(handle) {
+    openFile(handle, name = handle?.name || null) {
+      this.activeFileName = name;
       this.$emit('open-file', handle);
     },
 
@@ -390,6 +490,8 @@ export default {
       if (this.setlistItems.length && !confirm(this.t.confirmNewSetlist)) return;
       this.setlistItems = [];
       this.setlistName = '';
+      this.setlistUuid = '';
+      this.setlistLastModified = '';
       this.setlistHandle = null;
     },
 
@@ -418,12 +520,15 @@ export default {
       // Try to find the song in loaded files and open it
       const match = this.files.find(f => f.name === item.fileName);
       if (match) {
-        this.$emit('open-file', match.handle);
+        this.openFile(match.handle, match.name);
       }
     },
 
     // ── Build OpenSong XML for setlist ──
     buildSetlistXml(name) {
+      if (!this.setlistUuid) this.setlistUuid = this.createUuid();
+      this.setlistLastModified = this.currentIsoSecond();
+
       const items = this.setlistItems.map(s => {
         const escaped = s.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
           .replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -434,7 +539,7 @@ export default {
 
       const escapedName = name.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
-      return `<?xml version="1.0" encoding="UTF-8"?>\n<set name="${escapedName}">\n  <slide_groups>\n${items}\n  </slide_groups>\n</set>`;
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<set name="${escapedName}">\n  <uuid>${this.setlistUuid}</uuid>\n  <last_modified>${this.setlistLastModified}</last_modified>\n  <slide_groups>\n${items}\n  </slide_groups>\n</set>`;
     },
 
     // ── Parse OpenSong XML setlist ──
@@ -443,6 +548,10 @@ export default {
         const doc = new DOMParser().parseFromString(text, 'application/xml');
         const setEl = doc.querySelector('set');
         const name = setEl?.getAttribute('name') || '';
+        const directChildText = (tagName) => Array.from(setEl?.children || [])
+          .find(child => child.tagName === tagName)?.textContent || '';
+        const uuid = directChildText('uuid');
+        const lastModified = directChildText('last_modified');
         const groups = doc.querySelectorAll('slide_group[type="song"]');
         const items = [];
         groups.forEach(g => {
@@ -451,7 +560,7 @@ export default {
             fileName: g.getAttribute('path') || g.getAttribute('name') || ''
           });
         });
-        return { name, items };
+        return { name, uuid, lastModified, items };
       } catch (err) {
         console.error('Error parsing setlist XML:', err);
         return null;
@@ -471,6 +580,8 @@ export default {
         }
         this.setlistItems = parsed.items;
         this.setlistName = parsed.name || handle.name;
+        this.setlistUuid = parsed.uuid || '';
+        this.setlistLastModified = parsed.lastModified || '';
         this.setlistHandle = handle;
       } catch (err) {
         if (err.name !== 'AbortError') {
@@ -661,10 +772,17 @@ export default {
 
 .file-table tbody tr {
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 .file-table tbody tr:hover {
   background: var(--bg3, #2a2a2a);
+}
+.file-table tbody tr.selected {
+  background: color-mix(in srgb, var(--accent, #3ca88d) 18%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent, #3ca88d);
+}
+.file-table tbody tr.selected td {
+  color: var(--fg, #f0f0f0);
 }
 
 /* ── Botón agregar individual ── */

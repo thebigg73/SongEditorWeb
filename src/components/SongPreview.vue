@@ -324,7 +324,7 @@ export default {
     },
 
     startSyncScroll() {
-      const delay    = Number(this.song?.delay)    || 0;
+      const delay    = Number(this.song?.predelay) || 0;
       const duration = Number(this.song?.duration) || 0;
       if (!duration) {
         this.$emit('show-alert', {

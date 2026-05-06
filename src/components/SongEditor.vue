@@ -3,17 +3,7 @@
     <textarea
       ref="lyricsTextarea"
       v-model="song.lyrics"
-      placeholder="Escribe aquí las letras y acordes.../Write lyrics and chords here... 
-Ejemplo:/Example:
-[Verse]
-.G      C
-Línea de acordes arriba/Chord line above
- Letra debajo, no olvides agregar un espacio al principio./Lyrics below, don't forget to add a space at the beginning.
-
-[Chorus]
-.D    Em
-Acorde del coro/Chorus chord
-"
+      :placeholder="t.editorPlaceholder"
       spellcheck="false"
       autocomplete="off"
       autocorrect="off"
@@ -30,7 +20,8 @@ Acorde del coro/Chorus chord
 export default {
   name: "SongEditor",
   props: {
-    modelValue: Object
+    modelValue: Object,
+    t: Object
   },
   computed: {
     song: {
@@ -45,7 +36,7 @@ export default {
 .SongEditor {
   position: fixed;
   top: var(--toolbar-h, 48px);
-  /* FIX: se desplaza cuando el explorador está abierto (CSS var inyectada desde App) */
+  /* FIX: se desplaza cuando el explorador estÃ¡ abierto (CSS var inyectada desde App) */
   left: var(--explorer-left, 0px);
   right: 0;
   bottom: 0;
@@ -77,7 +68,7 @@ export default {
   font-family: inherit;
 }
 
-/* Selección de texto con color del acento */
+/* SelecciÃ³n de texto con color del acento */
 .SongEditor textarea::selection {
   background: rgba(60, 168, 141, 0.3);
 }

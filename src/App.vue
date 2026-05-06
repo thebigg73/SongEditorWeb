@@ -33,6 +33,7 @@
     <SongEditor
       v-model="song"
       ref="editor"
+      :t="t"
       :style="{ '--explorer-left': showExplorer ? '320px' : '0px' }"
     />
 
@@ -55,11 +56,10 @@
         <label>{{ t.artist }}: <input v-model="song.author" :placeholder="t.artist" /></label>
         <label>{{ t.notes }}: <textarea v-model="song.notes" :placeholder="t.notes"></textarea></label>
         <label>{{ t.key }}: <input v-model="song.key" placeholder="Ex. C, G, Am" /></label>
-        <label>{{ t.originalKey }}: <input v-model="song.originalKey" placeholder="Ex. G" /></label>
+        <label>{{ t.originalKey }}: <input v-model="song.keyoriginal" placeholder="Ex. G" /></label>
         <label>{{ t.capo }}: <input type="number" v-model.number="song.capo" placeholder="Ex. 3" /></label>
         <label>{{ t.tempo }}: <input type="number" v-model.number="song.tempo" placeholder="Ex. 120" /></label>
-        <label>{{ t.timeSignature }}: <input v-model="song.timeSignature" placeholder="Ex. 4/4" /></label>
-        <label>{{ t.instrument }}: <input v-model="song.instrument" placeholder="Ex. Guitar/Piano" /></label>
+        <label>{{ t.timeSignature }}: <input v-model="song.time_sig" placeholder="Ex. 4/4" /></label>
         <label>{{ t.duration }}:
           <div class="duration-row">
             <input type="number" v-model.number="durationMin" placeholder="min" min="0" />
@@ -68,9 +68,23 @@
             <span class="duration-label">seg</span>
           </div>
         </label>
-        <label>{{ t.delay }}: <input type="number" v-model.number="song.delay" placeholder="Ex. 5" /></label>
-        <label>{{ t.tags }}: <input v-model="song.tags" placeholder="Ex. Rock, Church, Acoustic" /></label>
-        <label>{{ t.presentation }}: <input v-model="song.presentationOrder" placeholder="Ex. V1, C, V2, C" /></label>
+        <label>{{ t.delay }}: <input type="number" v-model.number="song.predelay" placeholder="Ex. 5" /></label>
+        <label>{{ t.tags }}: <input v-model="song.theme" placeholder="Ex. Rock, Church, Acoustic" /></label>
+        <label>{{ t.presentation }}: <input v-model="song.presentation" placeholder="Ex. V1, C, V2, C" /></label>
+        <button type="button" class="btn-toggle-more" @click="showMoreMetadata = !showMoreMetadata">
+          {{ showMoreMetadata ? t.showLess : t.showMore }}
+        </button>
+        <div v-if="showMoreMetadata" class="metadata-extra">
+          <label>{{ t.ccli }}: <input v-model="song.ccli" placeholder="Ex. 1234567" /></label>
+          <label>{{ t.copyright }}: <input v-model="song.copyright" :placeholder="t.copyrightPlaceholder" /></label>
+          <label>{{ t.aka }}: <input v-model="song.aka" :placeholder="t.akaPlaceholder" /></label>
+          <label>{{ t.customChords }}: <input v-model="song.custom_chords" :placeholder="t.customChordsPlaceholder" /></label>
+          <label>{{ t.youtubeLink }}: <input v-model="song.link_youtube" placeholder="https://youtube.com/..." /></label>
+          <label>{{ t.webLink }}: <input v-model="song.link_web" placeholder="https://example.com" /></label>
+          <label>{{ t.audioLink }}: <input v-model="song.link_audio" placeholder="https://example.com/audio.mp3" /></label>
+          <label>{{ t.otherLink }}: <input v-model="song.link_other" placeholder="https://example.com" /></label>
+          <label>{{ t.hymnNumber }}: <input v-model="song.hymn_number" :placeholder="t.hymnNumberPlaceholder" /></label>
+        </div>
         <div class="modal-buttons">
           <button @click="cerrarModal">{{ t.saveClose }}</button>
         </div>
@@ -188,16 +202,88 @@ const SONG_DEFAULTS = () => ({
   lyrics: '',
   notes: '',
   key: '',
-  originalKey: '',
+  keyoriginal: '',
   capo: 0,
   tempo: 120,
-  timeSignature: '4/4',
-  instrument: '',
+  time_sig: '4/4',
   duration: 0,
-  delay: 0,
-  tags: '',
-  presentationOrder: ''
+  predelay: 0,
+  theme: '',
+  presentation: '',
+  ccli: '',
+  copyright: '',
+  aka: '',
+  custom_chords: '',
+  link_youtube: '',
+  link_web: '',
+  link_audio: '',
+  link_other: '',
+  hymn_number: '',
+  uuid: '',
+  last_modified: ''
 });
+
+const LEGACY_FIELD_ALIASES = {
+  originalKey: 'keyoriginal',
+  timeSignature: 'time_sig',
+  delay: 'predelay',
+  tag: 'theme',
+  tags: 'theme',
+  presentationOrder: 'presentation'
+};
+
+const createUuid = () => {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+const currentIsoSecond = () => new Date().toISOString().split('.')[0] + 'Z';
+
+const SONG_XML_FIELD_ORDER = [
+  'uuid',
+  'last_modified',
+  'title',
+  'author',
+  'copyright',
+  'presentation',
+  'hymn_number',
+  'capo',
+  'tempo',
+  'time_sig',
+  'duration',
+  'predelay',
+  'ccli',
+  'theme',
+  'alttheme',
+  'user1',
+  'user2',
+  'user3',
+  'beatbuddysong',
+  'beatbuddykit',
+  'drummer',
+  'drummerkit',
+  'key',
+  'keyoriginal',
+  'preferred_instrument',
+  'aka',
+  'midi',
+  'midi_index',
+  'notes',
+  'lyrics',
+  'pad_file',
+  'custom_chords',
+  'link_youtube',
+  'link_web',
+  'link_audio',
+  'loop_audio',
+  'link_other',
+  'abcnotation',
+  'abctranspose'
+];
 
 export default {
   name: "App",
@@ -206,6 +292,7 @@ export default {
   data() {
     return {
       mostrarMetadata: false,
+      showMoreMetadata: false,
       mostrarAtajos: false,
       showPreview: false,
       showExplorer: false,
@@ -266,6 +353,73 @@ export default {
       this.savedSongSnapshot = JSON.stringify(this.song);
     },
 
+    normalizeSongFromXml(parsedSong) {
+      const normalized = { ...parsedSong };
+
+      Object.entries(LEGACY_FIELD_ALIASES).forEach(([legacyKey, canonicalKey]) => {
+        const legacyValue = normalized[legacyKey];
+        if (
+          legacyValue !== undefined &&
+          legacyValue !== null &&
+          (
+            normalized[canonicalKey] === undefined ||
+            normalized[canonicalKey] === null ||
+            normalized[canonicalKey] === ''
+          )
+        ) {
+          normalized[canonicalKey] = legacyValue;
+        }
+        delete normalized[legacyKey];
+      });
+
+      if (normalized.capo && typeof normalized.capo === 'object' && normalized.capo['#text'] !== undefined) {
+        normalized.capo = normalized.capo['#text'];
+      }
+
+      return { ...SONG_DEFAULTS(), ...normalized };
+    },
+
+    prepareSongForSave() {
+      const songToSave = { ...this.song };
+
+      Object.keys(LEGACY_FIELD_ALIASES).forEach((legacyKey) => {
+        delete songToSave[legacyKey];
+      });
+
+      if (!songToSave.uuid) {
+        songToSave.uuid = createUuid();
+        this.song.uuid = songToSave.uuid;
+      }
+
+      songToSave.last_modified = currentIsoSecond();
+      this.song.last_modified = songToSave.last_modified;
+
+      if (songToSave.capo !== undefined && songToSave.capo !== '') {
+        songToSave.capo = { '#text': songToSave.capo, '@_print': '' };
+      }
+
+      const orderedSongToSave = {};
+
+      SONG_XML_FIELD_ORDER.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(songToSave, field)) {
+          orderedSongToSave[field] = songToSave[field];
+        }
+      });
+
+      Object.keys(songToSave).forEach((field) => {
+        if (!Object.prototype.hasOwnProperty.call(orderedSongToSave, field)) {
+          orderedSongToSave[field] = songToSave[field];
+        }
+      });
+
+      return orderedSongToSave;
+    },
+
+    buildSongXml() {
+      const builder = new XMLBuilder({ ignoreAttributes: false, format: true });
+      return builder.build({ song: this.prepareSongForSave() });
+    },
+
     // ── Unsaved changes dialog ──
     // Returns a promise that resolves to 'save', 'discard', or 'cancel'
     askUnsavedChanges() {
@@ -313,8 +467,10 @@ export default {
         const texto = await file.text();
         const parser = new XMLParser({ ignoreAttributes: false });
         const json = parser.parse(texto);
+        const parsedSong = json.song || {};
+
         // FIX: fallback robusto si el XML no tiene <song>
-        this.song = { ...SONG_DEFAULTS(), ...(json.song || {}) };
+        this.song = this.normalizeSongFromXml(parsedSong);
         this.fileHandle = handle;
         this.takeSongSnapshot();
       } catch (err) {
@@ -326,6 +482,7 @@ export default {
     // FIX: ya no necesita guardarMetadatos separado — los v-model ya actualizan reactivamente
     cerrarModal() {
       this.mostrarMetadata = false;
+      this.showMoreMetadata = false;
     },
 
     async nuevoArchivo() {
@@ -366,12 +523,11 @@ export default {
           suggestedName: this.song.title || 'Nueva Canción'
         });
         const writable = await handle.createWritable();
-        const builder = new XMLBuilder({ ignoreAttributes: false });
-        await writable.write(builder.build({ song: this.song }));
+        await writable.write(this.buildSongXml());
         await writable.close();
         this.fileHandle = handle;
         this.takeSongSnapshot();
-        this.$refs.fileExplorer?.refreshRoot();
+        this.$refs.fileExplorer?.refreshRoot({ selectedName: handle.name });
         alert("Archivo guardado correctamente");
       } catch (err) {
         if (err.name !== 'AbortError') {
@@ -391,8 +547,10 @@ export default {
         const texto = await file.text();
         const parser = new XMLParser({ ignoreAttributes: false });
         const json = parser.parse(texto);
+        const parsedSong = json.song || {};
+
         // FIX: fallback si el XML no contiene <song>
-        this.song = { ...SONG_DEFAULTS(), ...(json.song || {}) };
+        this.song = this.normalizeSongFromXml(parsedSong);
         this.takeSongSnapshot();
       } catch (err) {
         if (err.name !== 'AbortError') {
@@ -408,11 +566,10 @@ export default {
           return this.guardarComo();
         }
         const writable = await this.fileHandle.createWritable();
-        const builder = new XMLBuilder({ ignoreAttributes: false });
-        await writable.write(builder.build({ song: this.song }));
+        await writable.write(this.buildSongXml());
         await writable.close();
         this.takeSongSnapshot();
-        this.$refs.fileExplorer?.refreshRoot();
+        this.$refs.fileExplorer?.refreshRoot({ selectedName: this.fileHandle.name });
         alert("Archivo guardado");
       } catch (err) {
         console.error("Error al guardar:", err);
@@ -688,6 +845,17 @@ button:active {
 .modal-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
 
 /* ── Duration row ── */
+.btn-toggle-more {
+  align-self: flex-start;
+  padding: 6px 12px;
+}
+.metadata-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
 .duration-row {
   display: flex;
   align-items: center;
