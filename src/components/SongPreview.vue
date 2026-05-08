@@ -131,13 +131,6 @@
 
         <span class="sep"/>
 
-        <!-- Cerrar -->
-        <button class="btn-icon btn-close" @click="$emit('close')" :title="t.closePreview">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
       </div>
     </header>
 
@@ -211,9 +204,14 @@ export default {
       const htmlColumnas = columnas.map(col => {
         const lineas = col.trim().split('\n');
         let dentroDeChorus = false;
+        let seccionBilingue = false;
+        let contadorLetras = 0;
         const contenido = lineas.map(linea => {
-          if (/^\[.+\]$/.test(linea.trim())) {
-            const nombre = linea.trim().slice(1, -1);
+          const trimmed = linea.trim();
+          if (/^\[.+\]$/.test(trimmed)) {
+            const nombre = trimmed.slice(1, -1);
+            seccionBilingue = /L$/i.test(nombre);
+            contadorLetras = 0;
             // FIX: solo matchea "Chorus" exacto, no "Pre-Chorus"
             if (/^chorus(\s|$)/i.test(nombre)) {
               dentroDeChorus = true;
@@ -235,9 +233,15 @@ export default {
           }
           // FIX: remove extra space from start of lyrics line
           linea = linea.replace(/^ /, "");
-          return linea.trim()
-            ? `<div class="line-lyrics">${linea}</div>`
-            : `<div class="line-empty"></div>`;
+          if (linea.trim()) {
+            let cls = 'line-lyrics';
+            if (seccionBilingue) {
+              contadorLetras++;
+              if (contadorLetras % 2 === 0) cls += ' l2';
+            }
+            return `<div class="${cls}">${linea}</div>`;
+          }
+          return `<div class="line-empty"></div>`;
         }).join('');
 
         const cerrado = dentroDeChorus ? contenido + '</div>' : contenido;
@@ -307,6 +311,7 @@ export default {
     .chorus-block { border-left: 2pt solid #1e6e52; padding-left: 6pt; margin: 5pt 0; background: rgba(30, 110, 82, 0.12); }
     .line-chords  { font-family: 'Roboto Mono', monospace; font-size: 9pt; font-weight: bold; color: #0050a0; white-space: pre-wrap; overflow-wrap: break-word; }
     .line-lyrics  { font-size: 10.5pt; white-space: pre-wrap; }
+    .line-lyrics.l2 { color: #1e6e52; font-style: italic; opacity: 0.9; }
     .line-empty   { height: 5pt; }
     .chord        { color: #0050a0; font-weight: bold; }
     @page { margin: 15mm 18mm; }
@@ -611,6 +616,12 @@ export default {
   word-break: break-word;
   font-family: 'Roboto Mono', monospace;
   max-width: 100%;
+}
+.preview-panel .line-lyrics.l2 {
+  color: var(--lyrics-l2, #3ca88d);
+  font-style: italic;
+  font-weight: 500;
+  opacity: 0.9;
 }
 .preview-panel .line-empty  { height: 0.55em; }
 .preview-panel .chord { font-weight: bold; }

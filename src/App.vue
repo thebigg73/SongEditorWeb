@@ -4,6 +4,9 @@
       :modo="modo"
       :lang="lang"
       :t="t"
+      :songTitle="song.title"
+      :ytState="ytState"
+      :ytReady="ytReady"
       @toggle-explorer="showExplorer = !showExplorer"
       @toggle-preview="showPreview = !showPreview"
       @open-help="openHelp"
@@ -18,6 +21,8 @@
       @transpose-up="transposeUp"
       @transpose-down="transposeDown"
       @convert-to-opensong="convertToOpenSong"
+      @yt-play-pause="ytPlayPause"
+      @yt-rewind="ytRewind"
     />
 
     <!-- v-show en lugar de v-if: mantiene el estado de archivos cargados al cerrar -->
@@ -27,6 +32,7 @@
       :open="showExplorer"
       :t="t"
       @open-file="openFileFromHandle"
+      @alert="showAlert"
     />
 
     <!-- El editor se desplaza cuando el explorador está abierto -->
@@ -86,7 +92,7 @@
           <label>{{ t.hymnNumber }}: <input v-model="song.hymn_number" :placeholder="t.hymnNumberPlaceholder" /></label>
         </div>
         <div class="modal-buttons">
-          <button @click="cerrarModal">{{ t.saveClose }}</button>
+          <button @click="cerrarModal">{{ t.btnClose }}</button>
         </div>
       </div>
     </div>
@@ -185,6 +191,10 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Hidden YouTube Player Container -->
+    <div id="youtube-player-container" style="display: none;"></div>
+    <div id="youtube-player-placeholder" style="display: none;"></div>
   </div>
 </template>
 
@@ -313,7 +323,11 @@ export default {
         show: false,
         title: '',
         message: ''
-      }
+      },
+      // YouTube Player state
+      ytPlayer: null,
+      ytReady: false,
+      ytState: -1 // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
     };
   },
 
@@ -356,6 +370,14 @@ export default {
     normalizeSongFromXml(parsedSong) {
       const normalized = { ...parsedSong };
 
+      // Flatten objects (tags with attributes) into simple values
+      Object.keys(normalized).forEach(key => {
+        const val = normalized[key];
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          normalized[key] = val['#text'] !== undefined ? val['#text'] : '';
+        }
+      });
+
       Object.entries(LEGACY_FIELD_ALIASES).forEach(([legacyKey, canonicalKey]) => {
         const legacyValue = normalized[legacyKey];
         if (
@@ -371,10 +393,6 @@ export default {
         }
         delete normalized[legacyKey];
       });
-
-      if (normalized.capo && typeof normalized.capo === 'object' && normalized.capo['#text'] !== undefined) {
-        normalized.capo = normalized.capo['#text'];
-      }
 
       return { ...SONG_DEFAULTS(), ...normalized };
     },
@@ -394,8 +412,13 @@ export default {
       songToSave.last_modified = currentIsoSecond();
       this.song.last_modified = songToSave.last_modified;
 
-      if (songToSave.capo !== undefined && songToSave.capo !== '') {
-        songToSave.capo = { '#text': songToSave.capo, '@_print': '' };
+      if (songToSave.capo !== undefined && songToSave.capo !== null && songToSave.capo !== '') {
+        // Ensure we are not nesting an object if something went wrong
+        const capoVal = (typeof songToSave.capo === 'object') 
+          ? (songToSave.capo['#text'] !== undefined ? songToSave.capo['#text'] : '')
+          : songToSave.capo;
+        
+        songToSave.capo = { '#text': capoVal, '@_print': '' };
       }
 
       const orderedSongToSave = {};
@@ -473,9 +496,14 @@ export default {
         this.song = this.normalizeSongFromXml(parsedSong);
         this.fileHandle = handle;
         this.takeSongSnapshot();
+
+        // Load YouTube if link exists
+        this.$nextTick(() => {
+          this.initYoutubeFromLink();
+        });
       } catch (err) {
         console.error("Error opening file from handle:", err);
-        alert("No se pudo abrir el archivo");
+        this.showAlert({ message: this.t.errorOpenFile });
       }
     },
 
@@ -502,7 +530,7 @@ export default {
     showAlert(config) {
       this.alertModal = {
         show: true,
-        title: config.title || 'Aviso',
+        title: config.title || this.t.alertTitle,
         message: config.message || ''
       };
     },
@@ -528,11 +556,11 @@ export default {
         this.fileHandle = handle;
         this.takeSongSnapshot();
         this.$refs.fileExplorer?.refreshRoot({ selectedName: handle.name });
-        alert("Archivo guardado correctamente");
+        this.showAlert({ message: this.t.fileSaved });
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error("Error al guardar como:", err);
-          alert("No se pudo guardar el archivo");
+          this.showAlert({ message: this.t.errorSaveFile });
         }
       }
     },
@@ -552,10 +580,15 @@ export default {
         // FIX: fallback si el XML no contiene <song>
         this.song = this.normalizeSongFromXml(parsedSong);
         this.takeSongSnapshot();
+
+        // Load YouTube if link exists
+        this.$nextTick(() => {
+          this.initYoutubeFromLink();
+        });
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error("Error al abrir:", err);
-          alert("No se pudo abrir el archivo");
+          this.showAlert({ message: this.t.errorOpenFile });
         }
       }
     },
@@ -570,17 +603,17 @@ export default {
         await writable.close();
         this.takeSongSnapshot();
         this.$refs.fileExplorer?.refreshRoot({ selectedName: this.fileHandle.name });
-        alert("Archivo guardado");
+        this.showAlert({ message: this.t.fileSaved });
       } catch (err) {
         console.error("Error al guardar:", err);
-        alert("No se pudo guardar el archivo");
+        this.showAlert({ message: this.t.errorSaveFile });
       }
     },
 
     // ── Convert editor text to OpenSong format ──
     convertToOpenSong() {
       if (!this.song?.lyrics) {
-        alert('El editor está vacío. Escribe o pega texto primero.');
+        this.showAlert({ message: this.t.emptyEditorError });
         return;
       }
 
@@ -613,7 +646,7 @@ export default {
       }).join('\n');
 
       this.song.lyrics = converted;
-      alert('Texto convertido a formato OpenSong.');
+      this.showAlert({ message: this.t.convertedSuccess });
     },
 
     transponer(semitonos) {
@@ -637,15 +670,58 @@ export default {
       if (this.song.key) this.song.key = moverNota(this.song.key);
     },
 
+    // ── YouTube Controls ──
+    initYoutubeFromLink() {
+      if (!this.ytPlayer) return;
+      
+      const link = this.song?.link_youtube || "";
+      const videoId = this.extractYoutubeId(link);
+
+      if (videoId) {
+        this.ytPlayer.cueVideoById(videoId);
+        this.ytReady = true;
+      } else {
+        this.ytPlayer.stopVideo();
+        this.ytReady = false;
+      }
+    },
+
+    extractYoutubeId(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    },
+
+    ytPlayPause() {
+      if (!this.ytPlayer || !this.ytReady) return;
+      if (this.ytState === 1) {
+        this.ytPlayer.pauseVideo();
+      } else {
+        this.ytPlayer.playVideo();
+      }
+    },
+
+    ytRewind(seconds) {
+      if (!this.ytPlayer || !this.ytReady) return;
+      const currentTime = this.ytPlayer.getCurrentTime();
+      this.ytPlayer.seekTo(Math.max(0, currentTime - seconds), true);
+    },
+
     transposeUp()   { this.transponer(1);  },
     transposeDown() { this.transponer(-1); },
 
     handleKeydown(e) {
+      // Guardar con Alt+S para evitar conflictos con el navegador
+      if (e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        this.guardarDirecto();
+        return;
+      }
+
       if (!e.altKey) return;
       const key = e.key.toUpperCase();
       const map = {
         "1": "[ ]", "2": "[Intro]", "3": "[Verse]", "4": "[Pre-Chorus]",
-        // FIX: era "[ChoruSs]"
         "5": "[Chorus]",
         "6": "[Bridge]", "7": "[Solo]", "8": "[Instrumental]", "9": "[Outro]",
         "T": this.tabBlock,
@@ -668,6 +744,33 @@ export default {
   },
 
   mounted() {
+    // Load YouTube API
+    if (!window.YT) {
+      window.onYouTubeIframeAPIReady = () => {
+        this.ytPlayer = new window.YT.Player('youtube-player-placeholder', {
+          height: '0',
+          width: '0',
+          videoId: '',
+          playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1 },
+          events: {
+            'onReady': () => {
+              this.initYoutubeFromLink();
+            },
+            'onStateChange': (e) => {
+              this.ytState = e.data;
+            }
+          }
+        });
+      };
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    } else if (window.YT && window.YT.Player) {
+      // Si ya existe la API pero no el player (hot reload)
+      window.onYouTubeIframeAPIReady();
+    }
+
     // Aplicar tema guardado al arrancar
     document.documentElement.setAttribute('data-theme', this.modo);
     this._escapeHandler = (e) => { if (e.key === "Escape") this.cerrarModal(); };
@@ -702,6 +805,7 @@ export default {
   --accent: #3ca88d;
   --border: #333;
   --chord-color: #4FC3F7;
+  --lyrics-l2: #4edeb5; /* Menta brillante para modo oscuro */
   --toolbar-h: 48px;
 }
 [data-theme="light"] {
@@ -712,6 +816,7 @@ export default {
   --fg2: #555;
   --border: #ccc;
   --chord-color: #0070b8;
+  --lyrics-l2: #1e6e52; /* Verde bosque profundo para modo claro */
 }
 
 /* ── Reset base ── */
@@ -1036,4 +1141,45 @@ button:active {
 .columns { display: flex; gap: 20px; }
 .column { flex: 1; min-width: 200px; padding-right: 10px; border-right: 1px dashed var(--border); }
 .column:last-child { border-right: none; }
+
+/* ── Marquee & Tooltip ── */
+.marquee-content {
+  display: inline-block;
+  white-space: nowrap;
+  transition: transform 0.3s ease-out; /* Regreso suave */
+}
+
+/* Custom Tooltip (Instant) */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 99999;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  border: 1px solid #444;
+}
+
+[data-tooltip]:hover {
+  overflow: visible !important; /* Permite que el tooltip escape de la celda */
+}
+
+[data-tooltip]:hover:after {
+  opacity: 1;
+}
 </style>

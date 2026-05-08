@@ -35,8 +35,8 @@
               :class="{ selected: activeFileName === f.name }"
               @click="openFile(f.handle, f.name)"
             >
-              <td class="col-title">{{ f.name }}</td>
-              <td class="col-artist">{{ f.artist || '—' }}</td>
+              <td class="col-title" :data-tooltip="f.name">{{ f.name }}</td>
+              <td class="col-artist" :data-tooltip="f.artist">{{ f.artist || '—' }}</td>
               <td v-if="setRoot" class="col-add">
                 <button
                   class="btn-add"
@@ -168,7 +168,7 @@ export default {
     },
     t: Object
   },
-  emits: ['open-file'],
+  emits: ['open-file', 'alert'],
   data() {
     return {
       rootHandle: null,
@@ -315,7 +315,7 @@ export default {
         await this.refreshRoot({ selectedName: newName });
       } catch(err) {
         console.error("Error renaming file:", err);
-        alert("Could not rename file.");
+        this.$emit('alert', { message: this.t.errorRename });
       }
     },
     async deleteFile(file) {
@@ -328,7 +328,7 @@ export default {
         await this.refreshRoot({ selectedName: this.activeFileName === file.name ? fallbackSelection : this.activeFileName });
       } catch(err) {
         console.error("Error deleting file:", err);
-        alert("Could not delete file.");
+        this.$emit('alert', { message: this.t.errorDelete });
       }
     },
     async initFromDB() {
@@ -365,7 +365,7 @@ export default {
         return;
       }
       if (!window.showDirectoryPicker) {
-        alert('Browser not supported (use Chrome/Edge)');
+        this.$emit('alert', { message: this.t.browserNotSupported });
         return;
       }
       try {
@@ -615,7 +615,7 @@ export default {
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Error saving setlist:', err);
-          alert('Error saving setlist');
+          this.$emit('alert', { message: this.t.errorSaveSetlist });
         }
       }
     },

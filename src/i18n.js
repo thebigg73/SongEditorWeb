@@ -4,8 +4,8 @@ export const translations = {
     preview: "Vista previa (👁)",
     new: "Nuevo archivo",
     open: "Abrir archivo",
-    save: "Guardar (Ctrl+S)",
-    saveAs: "Guardar como…",
+    save: "Guardar (Alt + S)",
+    saveAs: "Guardar como...",
     metadata: "Editar metadatos",
     convert: "Convertir a formato OpenSong",
     transposeUp: "Subir un semitono",
@@ -77,6 +77,10 @@ export const translations = {
     shortcutGrid: "Bloque Grid",
     shortcutColumn: "Salto de columna",
     shortcutSave: "Guardar archivo",
+    shortcutsList: [
+      { key: "Alt + S", desc: "Guardar canción" },
+      { key: "Alt + N", desc: "Nueva canción" }
+    ],
 
     // Explorer
     files: "Archivos",
@@ -89,7 +93,7 @@ export const translations = {
     setlists: "Setlists",
     pickSetRoot: "Elegir carpeta setlist",
     newSetlist: "Nuevo setlist",
-    openSetlist: "Abrir setlist existente",
+    openSetlist: "Abrir setlist",
     addAll: "Agregar todas las canciones",
     saveSetlist: "Guardar setlist",
     dragToReorder: "Arrastrar para reordenar",
@@ -119,15 +123,29 @@ export const translations = {
     decreaseFont: "Reducir fuente",
     increaseFont: "Aumentar fuente",
     closePreview: "Cerrar preview",
-    emptyPreview: "Abre un archivo o escribe en el editor para ver la vista previa."
+    emptyPreview: "Abre un archivo o escribe en el editor para ver la vista previa.",
+
+    // Alerts
+    fileSaved: "Archivo guardado correctamente",
+    errorOpenFile: "No se pudo abrir el archivo",
+    errorSaveFile: "No se pudo guardar el archivo",
+    emptyEditorError: "El editor está vacío. Escribe o pega texto primero.",
+    convertedSuccess: "Texto convertido a formato OpenSong.",
+    errorRename: "No se pudo renombrar el archivo.",
+    errorDelete: "No se pudo borrar el archivo.",
+    browserNotSupported: "Navegador no soportado (usa Chrome o Edge)",
+    errorSaveSetlist: "Error al guardar el setlist",
+    alertTitle: "Aviso",
+    noSong: "Selecciona una canción para empezar",
+    noYoutube: "Agrega un link de YouTube en Metadatos"
   },
   en: {
     explorer: "File Explorer (☰)",
     preview: "Preview (👁)",
     new: "New file",
     open: "Open file",
-    save: "Save (Ctrl+S)",
-    saveAs: "Save as…",
+    save: "Save (Alt + S)",
+    saveAs: "Save as...",
     metadata: "Edit metadata",
     convert: "Convert to OpenSong format",
     transposeUp: "Transpose up",
@@ -199,6 +217,10 @@ export const translations = {
     shortcutGrid: "Grid Block",
     shortcutColumn: "Column Break",
     shortcutSave: "Save file",
+    shortcutsList: [
+      { key: "Alt + S", desc: "Save song" },
+      { key: "Alt + N", desc: "New song" }
+    ],
 
     // Explorer
     files: "Files",
@@ -241,6 +263,20 @@ export const translations = {
     decreaseFont: "Decrease font size",
     increaseFont: "Increase font size",
     closePreview: "Close preview",
-    emptyPreview: "Open a file or type in the editor to see the preview."
+    emptyPreview: "Open a file or type in the editor to see the preview.",
+
+    // Alerts
+    fileSaved: "File saved successfully",
+    errorOpenFile: "Could not open file",
+    errorSaveFile: "Could not save file",
+    emptyEditorError: "The editor is empty. Write or paste text first.",
+    convertedSuccess: "Text converted to OpenSong format.",
+    errorRename: "Could not rename file.",
+    errorDelete: "Could not delete file.",
+    browserNotSupported: "Browser not supported (use Chrome or Edge)",
+    errorSaveSetlist: "Error saving setlist",
+    alertTitle: "Notice",
+    noSong: "Select a song to start",
+    noYoutube: "Add a YouTube link in Metadata"
   }
 };
