@@ -23,6 +23,18 @@
       @convert-to-opensong="convertToOpenSong"
       @yt-play-pause="ytPlayPause"
       @yt-rewind="ytRewind"
+      :osaConnected="osaConnected"
+      :osaConnecting="osaConnecting"
+      @open-osa-settings="showOsaSettings = true"
+      @toggle-osa-connection="toggleOsaConnection"
+    />
+
+    <OsaSettingsModal
+      :show="showOsaSettings"
+      :t="t"
+      :initialEndpoint="osaEndpoint"
+      @save="saveOsaSettings"
+      @cancel="showOsaSettings = false"
     />
 
     <!-- v-show en lugar de v-if: mantiene el estado de archivos cargados al cerrar -->
@@ -31,7 +43,11 @@
       v-show="showExplorer"
       :open="showExplorer"
       :t="t"
+      :osaConnected="osaConnected"
+      :osaEndpoint="osaEndpoint"
       @open-file="openFileFromHandle"
+      @open-remote-song="openRemoteOsaSong"
+      @open-osa-settings="showOsaSettings = true"
       @alert="showAlert"
     />
 
@@ -201,10 +217,12 @@
 <script>
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
 import { translations } from "./i18n";
+import FileExplorer from "./components/FileExplorer.vue";
+import OsaSettingsModal from "./components/OsaSettingsModal.vue";
 import MainToolbar from "./components/MainToolbar.vue";
 import SongEditor from "./components/SongEditor.vue";
 import SongPreview from "./components/SongPreview.vue";
-import FileExplorer from "./components/FileExplorer.vue";
+import * as osaApi from "./services/osaApi";
 
 const SONG_DEFAULTS = () => ({
   title: '',
@@ -239,7 +257,12 @@ const LEGACY_FIELD_ALIASES = {
   delay: 'predelay',
   tag: 'theme',
   tags: 'theme',
-  presentationOrder: 'presentation'
+  presentationOrder: 'presentation',
+  // OSA JSON field aliases
+  timesig: 'time_sig',
+  lastModified: 'last_modified',
+  customchords: 'custom_chords',
+  midiindex: 'midi_index'
 };
 
 const createUuid = () => {
@@ -297,7 +320,7 @@ const SONG_XML_FIELD_ORDER = [
 
 export default {
   name: "App",
-  components: { MainToolbar, SongEditor, SongPreview, FileExplorer },
+  components: { MainToolbar, SongEditor, SongPreview, FileExplorer, OsaSettingsModal },
 
   data() {
     return {
@@ -327,7 +350,14 @@ export default {
       // YouTube Player state
       ytPlayer: null,
       ytReady: false,
-      ytState: -1 // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
+      ytState: -1, // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
+      // ── OSA State ──
+      osaEndpoint: localStorage.getItem('osa_endpoint') || '',
+      osaConnected: false,
+      osaConnecting: false,
+      osaSocket: null,
+      showOsaSettings: false,
+      currentRemoteOsaInfo: null // { folder, filename }
     };
   },
 
@@ -495,6 +525,7 @@ export default {
         // FIX: fallback robusto si el XML no tiene <song>
         this.song = this.normalizeSongFromXml(parsedSong);
         this.fileHandle = handle;
+        this.currentRemoteOsaInfo = null;
         this.takeSongSnapshot();
 
         // Load YouTube if link exists
@@ -519,6 +550,7 @@ export default {
       // FIX: campos numéricos con valores correctos en lugar de strings vacíos
       this.song = SONG_DEFAULTS();
       this.fileHandle = null;
+      this.currentRemoteOsaInfo = null;
       this.takeSongSnapshot();
       this.mostrarMetadata = true;
     },
@@ -595,6 +627,9 @@ export default {
 
     async guardarDirecto() {
       try {
+        if (this.osaConnected && this.currentRemoteOsaInfo) {
+          return this.guardarEnOsa();
+        }
         if (!this.fileHandle) {
           return this.guardarComo();
         }
@@ -607,6 +642,25 @@ export default {
       } catch (err) {
         console.error("Error al guardar:", err);
         this.showAlert({ message: this.t.errorSaveFile });
+      }
+    },
+
+    async guardarEnOsa() {
+      try {
+        const songData = this.prepareSongForSave();
+        // Inject remote metadata required by OSA API
+        songData.folder = this.currentRemoteOsaInfo.folder;
+        songData.filename = this.currentRemoteOsaInfo.filename;
+
+        this.showAlert({ message: this.t.osaSaveRemote });
+        await osaApi.saveSongToOsa(this.osaEndpoint, songData);
+        
+        this.takeSongSnapshot();
+        this.showAlert({ message: this.t.osaSaveSuccess });
+      } catch (err) {
+        console.error("Error saving to OSA:", err);
+        const detail = err.message || "Unknown error";
+        this.showAlert({ message: `${this.t.osaError}: ${detail}`, title: "Error" });
       }
     },
 
@@ -739,6 +793,109 @@ export default {
       if (this.hasUnsavedChanges) {
         e.preventDefault();
         e.returnValue = '';
+      }
+    },
+    // ── OSA Methods ──
+    saveOsaSettings(newEndpoint) {
+      this.osaEndpoint = newEndpoint;
+      localStorage.setItem('osa_endpoint', newEndpoint);
+      this.showOsaSettings = false;
+      // Reconnect if already connected
+      if (this.osaConnected) {
+        this.disconnectOsa();
+        this.connectOsa();
+      }
+    },
+    toggleOsaConnection() {
+      if (this.osaConnected || this.osaConnecting) {
+        this.disconnectOsa();
+      } else {
+        this.connectOsa();
+      }
+    },
+    connectOsa() {
+      // Basic validation: check if it looks like an IP or hostname
+      if (!this.osaEndpoint || !this.osaEndpoint.includes('.') || this.osaEndpoint.length < 7) {
+        this.showOsaSettings = true;
+        return;
+      }
+      this.osaConnecting = true;
+      try {
+        this.osaSocket = osaApi.createWebSocket(
+          this.osaEndpoint,
+          this.handleOsaMessage,
+          () => {
+            this.osaConnected = true;
+            this.osaConnecting = false;
+          },
+          () => {
+            this.osaConnected = false;
+            this.osaConnecting = false;
+            this.osaSocket = null;
+          },
+          (err) => {
+            console.error("OSA Socket Error:", err);
+            this.osaConnecting = false;
+            this.showAlert(this.t.osaError, "Connection failed. Check IP/Port and mixed content settings.");
+          }
+        );
+      } catch (e) {
+        this.osaConnecting = false;
+        console.error("OSA Connection Error:", e);
+      }
+    },
+    disconnectOsa() {
+      if (this.osaSocket) {
+        this.osaSocket.close();
+        this.osaSocket = null;
+      }
+      this.osaConnected = false;
+      this.osaConnecting = false;
+    },
+    handleOsaMessage(payload) {
+      // Handle remote refresh/update signal based on OSA 6.7.9 spec
+      const isRefresh = (typeof payload === 'string' && payload === 'REFRESH') || 
+                        (payload && payload.action === 'REFRESH');
+      
+      if (isRefresh) {
+        this.fetchCurrentOsaSong();
+      }
+    },
+    async fetchCurrentOsaSong() {
+      try {
+        const osaSong = await osaApi.fetchSongData(this.osaEndpoint);
+        if (osaSong) {
+          // Confirm before overwriting if there are unsaved changes?
+          // For now, let's just update if the user is in "Remote Sync" mode
+          this.song = this.normalizeSongFromXml(osaSong);
+          this.currentRemoteOsaInfo = {
+            folder: osaSong.folder || '',
+            filename: osaSong.filename || ''
+          };
+          this.takeSongSnapshot();
+        }
+      } catch (e) {
+        console.error("Failed to fetch current OSA song:", e);
+      }
+    },
+    async openRemoteOsaSong(remoteSongInfo) {
+      try {
+        const osaSong = await osaApi.fetchSongData(
+          this.osaEndpoint,
+          remoteSongInfo.folder,
+          remoteSongInfo.filename
+        );
+        if (osaSong) {
+          this.song = this.normalizeSongFromXml(osaSong);
+          this.currentRemoteOsaInfo = {
+            folder: remoteSongInfo.folder,
+            filename: remoteSongInfo.filename
+          };
+          this.takeSongSnapshot();
+        }
+      } catch (e) {
+        console.error("Failed to fetch remote song:", e);
+        this.showAlert(this.t.osaError, "Could not fetch song from OSA device.");
       }
     }
   },

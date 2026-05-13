@@ -152,11 +152,47 @@
         </div>
       </div>
     </div>
+
+    <!-- OSA Remote Library Section -->
+    <div class="section osa-section" v-if="osaConnected">
+      <div class="section-header-row">
+        <div class="section-label">{{ t.osaLibrary }}</div>
+        <button class="btn-refresh-mini" @click="fetchRemoteLibrary" :title="t.osaSync" :disabled="loadingRemote">
+          <svg :class="{ rotating: loadingRemote }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <button class="btn-refresh-mini" @click="$emit('open-osa-settings')" :title="t.osaSettingsTitle">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="files-list remote-list">
+        <div v-if="loadingRemote" class="empty">{{ t.osaConnecting }}</div>
+        <div v-else-if="remoteSongs.length === 0" class="empty">No songs found on device</div>
+        <table v-else class="file-table">
+          <tbody>
+            <tr
+              v-for="s in remoteSongs"
+              :key="s.folder + s.filename"
+              @click="$emit('open-remote-song', s)"
+            >
+              <td class="col-title" :data-tooltip="s.title">{{ s.title }}</td>
+              <td class="col-artist" :data-tooltip="s.artist">{{ s.artist || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </aside>
 </template>
 
 <script>
 import { get, set } from '../idb';
+import * as osaApi from '../services/osaApi';
 
 export default {
   name: 'FileExplorer',
@@ -166,9 +202,11 @@ export default {
       type: Boolean,
       default: false
     },
-    t: Object
+    t: Object,
+    osaConnected: Boolean,
+    osaEndpoint: String
   },
-  emits: ['open-file', 'alert'],
+  emits: ['open-file', 'open-remote-song', 'alert'],
   data() {
     return {
       rootHandle: null,
@@ -186,8 +224,20 @@ export default {
       pendingRoot: null,
       pendingSetRoot: null,
       activeMenu: null,
-      activeFileName: null
+      activeFileName: null,
+      // OSA Remote Library
+      remoteSongs: [],
+      loadingRemote: false
     };
+  },
+  watch: {
+    osaConnected(newVal) {
+      if (newVal) {
+        this.fetchRemoteLibrary();
+      } else {
+        this.remoteSongs = [];
+      }
+    }
   },
   async mounted() {
     await this.initFromDB();
@@ -638,6 +688,21 @@ export default {
       }
       this.dragIndex = null;
       this.dragOverIndex = null;
+    },
+    // ── OSA Remote Library ──
+    async fetchRemoteLibrary() {
+      if (!this.osaConnected || !this.osaEndpoint) return;
+      this.loadingRemote = true;
+      try {
+        const list = await osaApi.fetchSongLibrary(this.osaEndpoint);
+        if (list && Array.isArray(list)) {
+          this.remoteSongs = list;
+        }
+      } catch (e) {
+        console.error("Failed to fetch OSA library:", e);
+      } finally {
+        this.loadingRemote = false;
+      }
     }
   }
 };
@@ -965,5 +1030,45 @@ export default {
 .btn-remove:hover { 
   color: #fff; 
   background: #e05; 
+}
+
+/* OSA Remote Library Styles */
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.btn-refresh-mini {
+  background: transparent;
+  border: none;
+  color: var(--fg2);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-refresh-mini:hover:not(:disabled) {
+  background: var(--bg3);
+  color: var(--accent);
+}
+
+.btn-refresh-mini:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rotating {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

@@ -92,6 +92,27 @@
       </div>
 
       <div class="separator-v"></div>
+      
+      <div class="button-group">
+        <button 
+          class="btn-icon osa-btn" 
+          :class="{ 'connected': osaConnected, 'connecting': osaConnecting }"
+          @click="$emit('toggle-osa-connection')" 
+          @contextmenu.prevent="$emit('open-osa-settings')"
+          :title="osaConnected ? (t.osaDisconnect + ' (' + t.osaSettingsTitle + ': Right click)') : (t.osaConnect + ' (' + t.osaSettingsTitle + ': Right click)')"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+            <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+            <line x1="12" y1="20" x2="12.01" y2="20" stroke-width="3" stroke-linecap="round"></line>
+          </svg>
+          <div v-if="osaConnected" class="status-dot online"></div>
+          <div v-else-if="osaConnecting" class="status-dot pending"></div>
+        </button>
+      </div>
+
+      <div class="separator-v"></div>
 
       <button class="btn-icon btn-preview-corner" @click="$emit('toggle-preview')" :title="t.preview">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -109,7 +130,9 @@ export default {
     t: Object,
     songTitle: String,
     ytState: Number,
-    ytReady: Boolean
+    ytReady: Boolean,
+    osaConnected: Boolean,
+    osaConnecting: Boolean
   },
   emits: [
     'toggle-explorer',
@@ -127,7 +150,9 @@ export default {
     'convert-to-opensong',
     'toggle-lang',
     'yt-play-pause',
-    'yt-rewind'
+    'yt-rewind',
+    'open-osa-settings',
+    'toggle-osa-connection'
   ]
 };
 </script>
@@ -323,6 +348,39 @@ export default {
   background: #fff;
   color: var(--accent);
   border-color: #fff;
+}
+
+/* OSA Connection Styles */
+.osa-btn {
+  position: relative;
+}
+.osa-btn.connected {
+  color: var(--accent);
+}
+.osa-btn.connecting svg {
+  animation: pulse 1.5s infinite ease-in-out;
+}
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+.status-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--bg2);
+}
+.status-dot.online {
+  background: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+}
+.status-dot.pending {
+  background: #ffb100;
 }
 
 .separator-v {
