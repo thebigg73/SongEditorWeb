@@ -9,6 +9,7 @@
           <line x1="12" y1="20" x2="12.01" y2="20" stroke-width="3" stroke-linecap="round"></line>
         </svg>
         <h3>{{ t.osaSettingsTitle }}</h3>
+        <span class="alpha-badge">ALPHA</span>
       </div>
 
       <div class="modal-body">
@@ -23,6 +24,18 @@
             />
           </div>
         </label>
+
+        <div class="warning-box alpha-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div>
+            <strong>{{ t.osaAlphaWarning }}</strong>
+            <p>{{ t.osaAlphaDesc }}</p>
+          </div>
+        </div>
 
         <div class="warning-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -118,9 +131,18 @@ export default {
 }
 
 .modal-icon-header h3 {
-  margin: 0;
   font-size: 18px;
   font-weight: 700;
+}
+
+.alpha-badge {
+  background: #ff4757;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
 }
 
 .modal-body {
@@ -180,6 +202,18 @@ export default {
 .warning-box svg {
   flex-shrink: 0;
   margin-top: 2px;
+}
+
+.alpha-box {
+  background: rgba(255, 71, 87, 0.1);
+  border-color: rgba(255, 71, 87, 0.3);
+  color: #ff4757;
+}
+
+.alpha-box strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
 }
 
 .modal-buttons {

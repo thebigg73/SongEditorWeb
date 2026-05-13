@@ -31,6 +31,8 @@ export const translations = {
     osaStatusConnecting: "Conectando",
     osaSaveRemote: "Guardando en dispositivo OSA...",
     osaSaveSuccess: "¡Guardado con éxito en el dispositivo!",
+    osaAlphaWarning: "Función en Desarrollo Alfa",
+    osaAlphaDesc: "La sincronización bidireccional es experimental. El guardado en dispositivo está siendo probado por el equipo de OpenSongApp.",
 
     unsavedTitle: "Cambios sin guardar",
     unsavedText: "Has realizado cambios en la canción actual que no se han guardado. ¿Qué deseas hacer?",
@@ -187,6 +189,8 @@ export const translations = {
     osaStatusConnecting: "Connecting",
     osaSaveRemote: "Saving to OSA device...",
     osaSaveSuccess: "Saved successfully to device!",
+    osaAlphaWarning: "Feature in Alpha Development",
+    osaAlphaDesc: "Two-way synchronization is experimental. Saving to device is currently under testing by OpenSongApp team.",
 
     unsavedTitle: "Unsaved Changes",
     unsavedText: "You have made changes to the current song that haven't been saved. What would you like to do?",
